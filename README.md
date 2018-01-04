@@ -12,6 +12,10 @@ This is the implementation of Kim's [Convolutional Neural Networks for Sentence 
 * torchtext > 0.1
 * numpy
 
+## Parameters
+
+\-ensemble vot \-eval-on-test \-emb-path ~/project_space/jin/corpora/mikolov_vectors -verbose
+
 ## Result
 I just tried two dataset, MR and SST.
 
