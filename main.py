@@ -1,10 +1,12 @@
 #! /usr/bin/env python
+import functools
 import os
 import argparse
 import datetime
 import torch
 import torchtext.data as data
 import torchtext.datasets as datasets
+import torchtext.vocab
 import model
 import train
 import mydatasets
@@ -87,39 +89,21 @@ args = parser.parse_args()
 prediction_file_handle = open(args.prediction_file_handle, 'w')
 print('dial_id,turn_id,predicted,correct,prob,entropy,confidence,ave_prob,ave_logporb,chatscript_prob,chatscript_rank', file=prediction_file_handle)
 if args.word_vector == 'glove':
-    args.word_vector = 'glove.6B'
+    args.word_vector = 'glove.6B.pt'
 elif args.word_vector == 'w2v':
     if args.word_embed_dim != 300:
         raise Exception("w2v has no other kind of vectors than 300")
+    args.word_vector = 'word2vec.txt'
 else:
     args.word_vector = None
 
+unk_init_method = lambda x: x.uniform_(-0.25, 0.25)
 
-# load SST dataset
-def sst(text_field, label_field, **kargs):
-    train_data, dev_data, test_data = datasets.SST.splits(text_field, label_field, fine_grained=True)
-    text_field.build_vocab(train_data, dev_data, test_data)
-    label_field.build_vocab(train_data, dev_data, test_data)
-    train_iter, dev_iter, test_iter = data.BucketIterator.splits(
-        (train_data, dev_data, test_data),
-        batch_sizes=(args.batch_size,
-                     len(dev_data),
-                     len(test_data)),
-        **kargs)
-    return train_iter, dev_iter, test_iter
-
-
-# load MR dataset
-def mr(text_field, label_field, **kargs):
-    train_data, dev_data = mydatasets.MR.splits(text_field, label_field)
-    text_field.build_vocab(train_data, dev_data)
-    label_field.build_vocab(train_data, dev_data)
-    train_iter, dev_iter = data.Iterator.splits(
-        (train_data, dev_data),
-        batch_sizes=(args.batch_size, len(dev_data)),
-        **kargs)
-    return train_iter, dev_iter
-
+if args.word_vector is not None:
+    vectors = torchtext.vocab.Vectors(name=args.word_vector, cache=args.emb_path,
+                                      unk_init=unk_init_method)
+else:
+    vectors = None
 
 # load VP dataset
 def vp(text_field, label_field, foldid, num_experts=0, **kargs):
@@ -127,16 +111,14 @@ def vp(text_field, label_field, foldid, num_experts=0, **kargs):
     train_data, dev_data, test_data = vpdataset.VP.splits(text_field, label_field, foldid=foldid,
                                                           num_experts=num_experts)
     if num_experts > 0:
-        text_field.build_vocab(train_data[0], dev_data[0], test_data, wv_type=kargs["wv_type"], wv_dim=kargs["wv_dim"],
-                               wv_dir=kargs["wv_dir"], min_freq=kargs['min_freq'])
+        text_field.build_vocab(train_data[0], dev_data[0], test_data, min_freq=kargs['min_freq'],
+                               vectors=kargs['vectors'])
     else:
-        text_field.build_vocab(train_data, dev_data, test_data, wv_type=kargs["wv_type"], wv_dim=kargs["wv_dim"],
-                               wv_dir=kargs["wv_dir"], min_freq=kargs['min_freq'])
+        text_field.build_vocab(train_data, dev_data, test_data, min_freq=kargs['min_freq'],
+                               vectors=kargs['vectors'])
     # label_field.build_vocab(train_data, dev_data, test_data)
-    kargs.pop('wv_type')
-    kargs.pop('wv_dim')
-    kargs.pop('wv_dir')
     kargs.pop("min_freq")
+    kargs.pop("vectors")
     # print(type(train_data), type(dev_data))
     if num_experts > 0:
         train_iter = []
@@ -207,13 +189,12 @@ for xfold in range(args.xfolds):
     label_field = data.Field(sequential=False, use_vocab=False, preprocessing=int)
 
     train_iter, dev_iter, test_iter = vp(text_field, label_field, foldid=xfold, num_experts=args.num_experts,
-                                         device=args.device, repeat=False, sort=False
-                                         , wv_type=None, wv_dim=None, wv_dir=None, min_freq=1)
+                                         device=args.device, repeat=False, sort=False,
+                                         vectors=vectors, min_freq=1)
     train_iter_word, dev_iter_word, test_iter_word = vp(word_field, label_field, foldid=xfold,
-                                                       num_experts=args.num_experts, device=args.device,
-                                                       repeat=False, sort=False, wv_type=args.word_vector,
-                                                       wv_dim=args.word_embed_dim, wv_dir=args.emb_path,
-                                                       min_freq=args.min_freq)
+                                                       num_experts=args.num_experts,
+                                                        device=args.device, vectors=vectors,
+                                                       repeat=False, sort=False, min_freq=args.min_freq)
     # check_vocab(word_field)
     # print(label_field.vocab.itos)
 
@@ -346,13 +327,11 @@ for xfold in range(args.xfolds):
             exit()
 
     train_iter, dev_iter, test_iter = vp(text_field, label_field, foldid=xfold, device=args.device, repeat=False,
-                                         shuffle=False, sort=False
-                                         , wv_type=None, wv_dim=None, wv_dir=None, min_freq=1)
+                                         shuffle=False, sort=False, vectors=None
+                                         , min_freq=1)
     train_iter_word, dev_iter_word, test_iter_word = vp(word_field, label_field, foldid=xfold,
-                                                        device=args.device,
+                                                        device=args.device, vectors=vectors,
                                                         repeat=False, sort=False, shuffle=False,
-                                                        wv_type=args.word_vector,
-                                                        wv_dim=args.word_embed_dim, wv_dir=args.emb_path,
                                                         min_freq=args.min_freq)
 
     acc = train.train_final_ensemble(train_iter, dev_iter, train_iter_word, dev_iter_word, char_cnn, word_cnn, final_logit,
