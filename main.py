@@ -14,6 +14,7 @@ import pdb
 import vpdataset
 import numpy as np
 from chatscript_file_generator import *
+import process_silver
 
 parser = argparse.ArgumentParser(description='CNN text classificer')
 # learning
@@ -84,6 +85,9 @@ parser.add_argument('-ensemble', type=str, default='poe',
 parser.add_argument('-num-experts', type=int, default=5, help='number of experts if poe is enabled [default: 5]')
 parser.add_argument('-prediction-file-handle', type=str, default='predictions.txt', help='the file to output the test predictions')
 parser.add_argument('-no-always-norm', action='store_true', default=False, help='always max norm the weights')
+
+parser.add_argument('-silver-set', type=str, default=None, help='the silver dataset for training '
+                                                                'and evaluation')
 args = parser.parse_args()
 
 prediction_file_handle = open(args.prediction_file_handle, 'w')
@@ -175,6 +179,7 @@ update_args = True
 
 indices = calc_indices(args)
 labels = read_in_labels('data/labels.txt')
+rare_labels = read_in_labels('data/labels.rare.txt')
 dialogues = read_in_dialogues('data/wilkins_corrected.shuffled.51.indices')
 chats = read_in_chat('data/stats.16mar2017.csv', dialogues)
 
@@ -198,6 +203,15 @@ for xfold in range(args.xfolds):
     # check_vocab(word_field)
     # print(label_field.vocab.itos)
 
+    if args.silver_set is not None:
+        fields = [('text', word_field), ('label', label_field)]
+        silver_examples = process_silver.get_silver_dataset(args.silver_set, fields, labels,
+                                                               test_iter_word, rare_labels)
+        if isinstance(train_iter, list):
+            for train_dataset in train_iter:
+                train_dataset.dataset.examples.append(silver_examples)
+        else:
+            train_iter.dataset.examples.append(silver_examples)
     
     args.class_num = 359
     args.cuda = args.yes_cuda and torch.cuda.is_available()  # ; del args.no_cuda
