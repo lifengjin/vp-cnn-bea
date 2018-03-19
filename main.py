@@ -204,14 +204,20 @@ for xfold in range(args.xfolds):
     # print(label_field.vocab.itos)
 
     if args.silver_set is not None:
-        fields = [('text', word_field), ('label', label_field)]
-        silver_examples = process_silver.get_silver_dataset(args.silver_set, fields, labels,
+        word_fields = [('text', word_field), ('label', label_field)]
+        char_fields = [('text', text_field), ('label', label_field)]
+        silver_word_examples, silver_char_examples = process_silver.get_silver_dataset(
+            args.silver_set, word_fields,
+                                                            char_fields, labels,
                                                                test_iter_word, rare_labels)
         if isinstance(train_iter, list):
             for train_dataset in train_iter:
-                train_dataset.dataset.examples.append(silver_examples)
+                train_dataset.dataset.examples.append(silver_char_examples)
+            for train_dataset in train_iter_word:
+                train_dataset.dataset.examples.append(silver_word_examples)
         else:
-            train_iter.dataset.examples.append(silver_examples)
+            train_iter.dataset.examples.append(silver_char_examples)
+            train_iter_word.dataset.examples.append(silver_word_examples)
     
     args.class_num = 359
     args.cuda = args.yes_cuda and torch.cuda.is_available()  # ; del args.no_cuda

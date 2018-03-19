@@ -1,10 +1,11 @@
 import torchtext
 
-def get_silver_dataset(silver_fn, fields, labels, test_iter, rare_labels):
-    test_examples = test_iter.data()
+def get_silver_dataset(silver_fn, word_fields, char_fields, labels, test_iter_word, rare_labels):
+    test_examples = test_iter_word.data()
     i = 0
     with open(silver_fn) as sfn:
-        examples = []
+        word_examples = []
+        char_examples = []
         sfn_lines = sfn.readlines()
         for index, line in enumerate(sfn_lines):
             if line.startswith('paraphrase'):
@@ -15,7 +16,6 @@ def get_silver_dataset(silver_fn, fields, labels, test_iter, rare_labels):
                 if label_string not in rare_labels:
                     continue
                 label = labels.index(label_string)
-                this_example = torchtext.data.Example.fromlist([para, label], fields)
                 j = 1
                 while True:
                     prev_sent = sfn_lines[index-j]
@@ -25,7 +25,7 @@ def get_silver_dataset(silver_fn, fields, labels, test_iter, rare_labels):
                     else:
                         j += 1
                 prev_para_sent = ' '.join(prev_para)
-                this_prev_example = torchtext.data.Example.fromlist([prev_para_sent,'0'], fields)
+                this_prev_example = torchtext.data.Example.fromlist([prev_para_sent,'0'], word_fields)
                 for test_example in test_examples:
                     if this_prev_example.text == test_example.text:
                         i += 1
@@ -35,8 +35,11 @@ def get_silver_dataset(silver_fn, fields, labels, test_iter, rare_labels):
                     #         print('test',test_example.text)
                     #         print('para',this_prev_example.text)
                 else:
-                    examples.append(this_example)
-    return examples
+                    this_example = torchtext.data.Example.fromlist([para, label], word_fields)
+                    word_examples.append(this_example)
+                    this_example = torchtext.data.Example.fromlist([para, label], char_fields)
+                    char_examples.append(this_example)
+    return word_examples, char_examples
     #     print("filtering out {}".format(i))
     #
     #     dataset = torchtext.data.Dataset(examples, fields)
