@@ -212,12 +212,12 @@ for xfold in range(args.xfolds):
                                                                test_iter_word, rare_labels)
         if isinstance(train_iter, list):
             for train_dataset in train_iter:
-                train_dataset.dataset.examples.append(silver_char_examples)
+                train_dataset.dataset.examples.extend(silver_char_examples)
             for train_dataset in train_iter_word:
-                train_dataset.dataset.examples.append(silver_word_examples)
+                train_dataset.dataset.examples.extend(silver_word_examples)
         else:
-            train_iter.dataset.examples.append(silver_char_examples)
-            train_iter_word.dataset.examples.append(silver_word_examples)
+            train_iter.dataset.examples.extend(silver_char_examples)
+            train_iter_word.dataset.examples.extend(silver_word_examples)
     
     args.class_num = 359
     args.cuda = args.yes_cuda and torch.cuda.is_available()  # ; del args.no_cuda
