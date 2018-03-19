@@ -204,8 +204,8 @@ for xfold in range(args.xfolds):
     # print(label_field.vocab.itos)
 
     if args.silver_set is not None:
-        word_fields = [('text', word_field), ('label', label_field)]
-        char_fields = [('text', text_field), ('label', label_field)]
+        word_fields = {'text': word_field, 'label': label_field}
+        char_fields = {'text': text_field, 'label': label_field}
         silver_word_examples, silver_char_examples = process_silver.get_silver_dataset(
             args.silver_set, word_fields,
                                                             char_fields, labels,
